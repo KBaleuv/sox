@@ -440,7 +440,7 @@ struct dummy_type {};
 
 int main (int argc, char** argv)
 {
-    data::composite_binder<data::mock, data::tuple_binder, data::sequence_binder<size_t>, data::trivial_binder> saver;
+    data::composite_binder<data::mock, data::tuple_binder, data::sequence_binder<data::length_type>, data::length_binder, data::trivial_binder> saver;
     //native_saver saver;
     //data::mock mockup;
     std::stringstream buffer;

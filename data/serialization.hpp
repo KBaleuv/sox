@@ -41,14 +41,14 @@ namespace data
 
         static size_t endian_length()
         {
-            volatile basic_sequence<probe_t, uint8_t> probe;
-            probe.value = 1;
-            size_t length = 0;
-            while (length < probe.length)
+            volatile probe_t probe (1);
+            volatile uint8_t* volatile ptr_base = reinterpret_cast<volatile uint8_t*>(&probe);
+            volatile uint8_t* volatile ptr = ptr_base;
+            while (*ptr != 1)
             {
-                if (probe.sequence[length] == 1) break;
+                ++ptr;
             }
-            return length + 1;
+            return (ptr - ptr_base) + 1;
         }
 
         static size_t length;
@@ -56,7 +56,7 @@ namespace data
     };
 
     size_t Endian::length = endian_length();
-    bool Endian::is_big = (length != 1);
+    bool Endian::is_big = (length == 1);
     
     template <typename T, typename U>
     struct SerializableSequence : public basic_sequence<T, U>
@@ -70,16 +70,92 @@ namespace data
 
         SerializableSequence& serialize()
         {
+            return to_big();
+        }
+        
+        SerializableSequence& to_big()
+        {
             if (!Endian::is_big)
             {
-                for (basic_t* begin = basic_sequence<T, U>::sequence, *end = basic_sequence<T, U>::sequence + basic_sequence<T, U>::length - 1; begin < end; ++begin, --end)
-                {
-                    std::swap(*begin, *end);
-                }
+                __swap_order();
             }
             return *this;
         }
+        
+        SerializableSequence& to_little()
+        {
+            if (Endian::is_big)
+            {
+                __swap_order();
+            }
+            return *this;
+        }
+    private:
+        void __swap_order()
+        {
+            for (basic_t* begin = basic_sequence<T, U>::sequence, *end = basic_sequence<T, U>::sequence + basic_sequence<T, U>::length - 1; begin < end; ++begin, --end)
+            {
+                std::swap(*begin, *end);
+            }
+        }
     };
+    
+    struct length_type
+    {
+        template <typename T>
+        operator size_t()
+        {
+            return value;
+        }
+        
+        size_t value;
+    };
+    
+    length_type& operator++ (length_type& lhs)
+    {
+        ++lhs.value;
+        return lhs;
+    }
+    
+    length_type operator++ (length_type& lhs, int)
+    {
+        length_type temp;
+        temp.value = lhs.value;
+        ++lhs.value;
+        return temp;
+    }
+    
+    length_type& operator-- (length_type& lhs)
+    {
+        --lhs.value;
+        return lhs;
+    }
+    
+    length_type operator-- (length_type& lhs, int)
+    {
+        length_type temp;
+        temp.value = lhs.value;
+        --lhs.value;
+        return temp;
+    }
+    
+    template <typename T>
+    bool operator> (length_type lhs, T rhs)
+    {
+        return lhs.value > rhs;
+    }
+    
+    template <typename T>
+    bool operator> (T lhs, length_type rhs)
+    {
+        return lhs > rhs.value;
+    }
+    
+    template <typename T>
+    bool operator> (length_type lhs, length_type rhs)
+    {
+        return lhs.value > rhs.value;
+    }
 };
 
 #endif	/* SERIALIZATION_HPP */

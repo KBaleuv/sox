@@ -207,6 +207,75 @@ namespace data
             return x;
         }
     };
+    
+    template <size_t Base, size_t Power>
+    struct static_power
+    {
+        static const size_t value = static_power<Base, Power - 1>::value * Base;
+    };
+    
+    template <size_t Base>
+    struct static_power<Base, 0>
+    {
+        static const size_t value = 1;
+    };
+    
+    struct length_binder
+    {
+        template <typename _Tch, typename _Ttr>
+        std::basic_ostream<_Tch, _Ttr>& operator() (std::basic_ostream<_Tch, _Ttr>& stream, length_type x) const
+        {
+            typedef decltype(std::declval<length_type>().value) underlying_t;
+            
+            const size_t window_length = CHAR_BIT * sizeof(_Tch) - 1;
+            const underlying_t mask = (static_power<2, window_length>::value - 1);
+            
+            SerializableSequence<underlying_t, _Tch> serializer;
+            serializer.value = x.value;
+            underlying_t limits = static_power<2, window_length>::value;
+            size_t length = 0;
+            _Tch buffer;
+            
+            while (limits && serializer.value > limits)
+            {
+                ++length;
+                limits *= static_power<2, window_length>::value;
+            }
+
+            while (length > 0)
+            {
+                buffer = (serializer.value & mask) | (mask + 1);
+                stream.put(buffer);
+                serializer.value /= static_power<2, window_length>::value;
+                --length;
+            }
+            buffer = (serializer.value & mask);
+            stream.put(buffer);
+            return stream;
+        }
+        
+        template <typename _Tch, typename _Ttr>
+        length_type& operator() (length_type& x, std::basic_istream<_Tch, _Ttr>& stream) const
+        {
+            typedef decltype(std::declval<length_type>().value) underlying_t;
+            
+            const size_t window_length = CHAR_BIT * sizeof(_Tch) - 1;
+            const underlying_t mask = (static_power<2, window_length>::value - 1);
+            
+            SerializableSequence<underlying_t, _Tch> serializer;
+            serializer.value = 0;
+            underlying_t offset = 1;
+            _Tch buffer;
+            while ((buffer = stream.get()) & (mask + 1))
+            {
+                serializer.value += (buffer & mask) * offset;
+                offset *= static_power<2, window_length>::value;
+            }
+            serializer.value += (buffer & mask) * offset;
+            x.value = serializer.value;
+            return x;
+        }
+    };
 
     template <typename _Provider, typename _Binder, typename... _Binders>
     struct composite_binder
